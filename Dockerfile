@@ -1,7 +1,6 @@
-# Gunakan image PHP 8.1 FPM
 FROM php:8.1-fpm
 
-# Install dependensi sistem dan ekstensi PHP
+# Install dependensi sistem
 RUN apt-get update && apt-get install -y \
     nginx \
     libpq-dev \
@@ -22,18 +21,17 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
 WORKDIR /var/www/html
 
-# Salin seluruh kode proyek (pastikan public/build sudah ada hasil dari lokal)
+# Salin semua file
 COPY . .
 
-# Konfigurasi Nginx
+# Copy nginx.conf ke lokasi Nginx
 RUN cp nginx.conf /etc/nginx/sites-available/default
 
 # Install dependensi PHP
 RUN composer install --no-dev --optimize-autoloader
 
-# Beri hak akses ke folder storage
+# Atur hak akses folder (PENTING untuk menghindari 403 Forbidden)
 RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
 
-# Jalankan migrasi, seeder, lalu mulai server
-# Menggunakan && memastikan langkah berurutan: jika migrasi gagal, Nginx tidak akan nyala
+# Jalankan migrasi, seeder, lalu mulai Nginx dan PHP-FPM
 CMD php artisan migrate:fresh --seed --force && service nginx start && php-fpm
