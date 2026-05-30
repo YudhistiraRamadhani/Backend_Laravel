@@ -1,14 +1,20 @@
-# Gunakan PHP 8.1
 FROM php:8.1-fpm
 
-# Install dependensi sistem
+# Install dependensi sistem + ekstensi yang dibutuhkan Laravel & Filament
 RUN apt-get update && apt-get install -y \
     nginx \
     libpq-dev \
     git \
     unzip \
     libzip-dev \
-    && docker-php-ext-install pdo pdo_pgsql zip
+    libicu-dev \
+    libonig-dev \
+    libxml2-dev \
+    libpng-dev \
+    libjpeg-dev \
+    libfreetype6-dev \
+    && docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-install pdo pdo_pgsql zip intl mbstring xml gd
 
 # Install Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
@@ -17,22 +23,19 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
     && apt-get install -y nodejs
 
-# Set Working Directory terlebih dahulu
 WORKDIR /var/www/html
 
-# Salin seluruh kode aplikasi ke dalam container
+# Salin semua kode (pastikan nginx.conf ada di root repository)
 COPY . .
 
-# Konfigurasi Nginx (Pastikan nginx.conf ada di root)
-# Menggunakan jalur absolut agar lebih aman
-COPY nginx.conf /etc/nginx/sites-available/default
+# Copy nginx.conf
+RUN cp nginx.conf /etc/nginx/sites-available/default
 
-# Install dependensi Laravel & Build aset
+# Install dependensi
 RUN composer install --no-dev --optimize-autoloader
 RUN npm install && npm run build
 
-# Beri hak akses ke storage
+# Beri hak akses
 RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
 
-# Jalankan Nginx dan PHP-FPM
 CMD service nginx start && php-fpm
