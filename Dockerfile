@@ -1,7 +1,6 @@
-# Gunakan image PHP 8.1 FPM
 FROM php:8.1-fpm
 
-# Install dependensi sistem dan ekstensi PHP
+# Install dependensi sistem
 RUN apt-get update && apt-get install -y \
     nginx \
     libpq-dev \
@@ -17,34 +16,28 @@ RUN apt-get update && apt-get install -y \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install pdo pdo_pgsql zip intl mbstring xml gd
 
-# Install Composer dari image resmi
+# Install Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
 WORKDIR /var/www/html
-
-# Salin seluruh kode proyek
 COPY . .
 
 # Konfigurasi Nginx
 RUN cp nginx.conf /etc/nginx/sites-available/default
 
-# Install dependensi PHP tanpa dev (lebih ringan untuk produksi)
+# Install dependensi PHP
 RUN composer install --no-dev --optimize-autoloader
 
-# Pastikan user www-data memiliki hak akses ke folder storage & cache
+# Atur hak akses folder agar tidak 403 Forbidden
 RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache \
     && chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
 
-# Buat skrip start.sh untuk menjalankan migrasi, seeding, dan service
-# Menggunakan 'exec' di baris terakhir agar PHP-FPM menangkap sinyal dari sistem
+# Skrip untuk memastikan migrasi berjalan sebelum server aktif
 RUN echo '#!/bin/bash\n\
 php artisan migrate --force\n\
 php artisan db:seed --force\n\
-service nginx start\n\
-exec php-fpm' > /start.sh && chmod +x /start.sh
+nginx -g "daemon off;" &' > /start.sh && chmod +x /start.sh
 
-# Ekspos port 80 untuk web
+# Jalankan PHP-FPM dan skrip Nginx
 EXPOSE 80
-
-# Jalankan skrip start.sh sebagai pintu masuk utama
-CMD ["/start.sh"]
+CMD ["sh", "-c", "/start.sh && php-fpm"]
