@@ -1,0 +1,34 @@
+# --- Environment ---
+.env
+.env.example
+
+# --- Dependencies & Build ---
+vendor
+node_modules
+public/hot
+public/storage
+public/build
+
+# --- System & Version Control ---
+.git
+.gitignore
+.dockerignore
+Dockerfile
+nginx.conf
+
+# --- Logs & Cache ---
+storage/logs/*.log
+storage/framework/cache/*
+storage/framework/sessions/*
+storage/framework/views/*
+storage/app/debugbar/*
+
+# --- Testing & Documentation ---
+tests/
+phpunit.xml
+README.md
+*.md
+
+# --- Laravel Specific ---
+.phpunit.result.cache
+.php-cs-fixer.cache
