@@ -13,8 +13,6 @@ public/build
 .git
 .gitignore
 .dockerignore
-Dockerfile
-nginx.conf
 
 # --- Logs & Cache ---
 storage/logs/*.log
