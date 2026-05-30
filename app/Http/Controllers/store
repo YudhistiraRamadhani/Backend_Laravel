@@ -1,0 +1,118 @@
+<?php
+
+namespace App\Http\Controllers\Api;
+
+use App\Models\Transaksi;
+use App\Http\Controllers\Controller;
+use Illuminate\Http\Request;
+use App\Models\Produk;
+use App\Models\LaporanKeuangan;
+class TransaksiController extends Controller
+{
+    public function index(Request $request)
+    {
+        $query = Transaksi::query();
+
+        // 🔍 SEARCH (Nama Barang)
+        if ($request->has('search')) {
+            $query->where('Nama_Barang', 'like', '%' . $request->search . '%');
+        }
+
+        // 📅 FILTER BULAN
+        if ($request->has('month')) {
+            $query->whereMonth('Tanggal', $request->month);
+        }
+
+        // 📅 FILTER TAHUN
+        if ($request->has('year')) {
+            $query->whereYear('Tanggal', $request->year);
+        }
+
+        return response()->json([
+            'data' => $query->latest()->get()
+        ]);
+    }
+
+    // 🔥 LIST PRODUK
+    public function getProdukList()
+    {
+        $produks = Produk::select('id', 'Nama_Barang', 'Harga', 'jenis_barang', 'nama_supplier')->get();
+        return response()->json($produks);
+    }
+
+    // 🔥 INSERT DATA
+    public function store(Request $request)
+{
+    $request->validate([
+        'nama_barang'     => 'required|string',
+        'harga'           => 'required|numeric',
+        'jumlah'          => 'required|numeric',
+        'tanggal'         => 'required|date',
+        'jenis_transaksi' => 'required|string',
+        'jenis_barang'    => 'nullable|string',
+        'nama_supplier'   => 'nullable|string',
+        'deskripsi'       => 'nullable|string',
+    ]);
+
+    $total = (int)$request->harga * (int)$request->jumlah;
+
+    // 1. Simpan ke tabel Transaksi (untuk Laporan Penjualan/Stok)
+    $transaksi = Transaksi::create([
+        'Nama_Barang'     => $request->nama_barang,
+        'Harga'           => $request->harga,
+        'Jumlah'          => $request->jumlah,
+        'Tanggal'         => $request->tanggal,
+        'jenis_transaksi' => ucfirst(strtolower($request->jenis_transaksi)),
+        'jenis_barang'    => $request->jenis_barang,
+        'nama_supplier'   => $request->nama_supplier,
+        'deskripsi'       => $request->deskripsi,
+    ]);
+
+    // 2. Simpan ke tabel Laporan Keuangan
+    $pendapatan = (strtolower($request->jenis_transaksi) == 'pemasukan') ? $total : 0;
+    $pengeluaran = (strtolower($request->jenis_transaksi) == 'pengeluaran') ? $total : 0;
+
+    \App\Models\LaporanKeuangan::create([
+        'nama_barang'   => $request->nama_barang,
+        'pendapatan'    => $pendapatan,
+        'pengeluaran'   => $pengeluaran,
+        'harga'         => $request->harga,
+        'jumlah'        => $request->jumlah,
+        'tanggal'       => $request->tanggal,
+        'jenis_barang'  => $request->jenis_barang,
+        'nama_supplier' => $request->nama_supplier,
+    ]);
+
+    return response()->json(['status' => 'success', 'data' => $transaksi], 201);
+}
+    // 🔥 UPDATE DATA
+    public function update(Request $request, $id)
+    {
+        $transaksi = Transaksi::findOrFail($id);
+
+        $request->validate([
+            'Nama_Barang'     => 'sometimes|string',
+            'Harga'           => 'sometimes|numeric',
+            'Jumlah'          => 'sometimes|numeric',
+            'Tanggal'         => 'sometimes|date',
+            'jenis_transaksi' => 'sometimes|in:Pemasukan,Pengeluaran',
+            'deskripsi'       => 'nullable|string', // ✅ Tambahkan validasi deskripsi
+        ]);
+
+        // Menggunakan $request->all() sudah aman jika fillable di Model sudah benar
+        $transaksi->update($request->all());
+
+        return response()->json([
+            'status' => 'success',
+            'data' => $transaksi
+        ]);
+    }
+
+    public function destroy($id)
+    {
+        $transaksi = Transaksi::findOrFail($id);
+        $transaksi->delete();
+
+        return response()->json(['message' => 'Transaksi berhasil dihapus'], 200);
+    }
+}

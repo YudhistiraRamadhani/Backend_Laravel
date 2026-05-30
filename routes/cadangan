@@ -1,0 +1,34 @@
+<?php
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Api\DataPelangganController;
+use App\Http\Controllers\Api\ProdukController;
+use App\Http\Controllers\Api\TransaksiController;
+use App\Http\Controllers\Api\DatapiutangController;
+use App\Http\Controllers\Api\LaporankeuanganController;
+use App\Http\Controllers\Api\NotifikasilocalController;
+use App\Http\Controllers\Api\FonnteNotificationController;
+use App\Http\Controllers\Api\FonntePenagihanNotificationController;
+
+// 1. Route untuk Data Pelanggan
+ Route::apiResource('pelanggan', DataPelangganController::class);
+
+// 2. Route untuk Produk
+Route::apiResource('produks', ProdukController::class);
+
+// 3. Route untuk Transaksi
+Route::apiResource('transaksi', TransaksiController::class);
+
+Route::apiResource('piutang', DatapiutangController::class);
+
+Route::apiResource('laporankeuangan', LaporankeuanganController::class);
+Route::apiResource('notifikasi', NotifikasilocalController::class);
+Route::post('/promo', [FonnteNotificationController::class, 'sendNotification']);
+Route::post('/penagihan', [FonntePenagihanNotificationController::class, 'store']);
+Route::get('/produks-list', [TransaksiController::class, 'getProdukList']);
+// Route::get('/transaksis', [TransaksiController::class, 'index']);
+// Route::post('/transaksis', [TransaksiController::class, 'store'])
+Route::apiResource('transaksi', TransaksiController::class);
+
+Route::apiResource('laporankeuangan', LaporankeuanganController::class);
+Route::post('/transaksi-voucher', [LaporankeuanganController::class, 'store']);

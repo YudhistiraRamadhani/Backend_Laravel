@@ -1,0 +1,57 @@
+<?php
+
+namespace App\Http\Controllers\Api;
+
+use App\Http\Controllers\Controller;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Http;
+
+class BroadcastController extends Controller
+{
+    public function sendBroadcast(Request $request)
+    {
+        $request->validate([
+            'target' => 'required',
+            'message' => 'required|string',
+        ]);
+
+        // Token akun sesuai gambar dashboard Anda
+        $token = "SnmjjjeviWdCJmgP7ncV";
+
+        $targetRaw = str_replace(' ', '', $request->target);
+        $targets = explode(',', $targetRaw);
+
+        $formattedTargets = array_map(function($number) {
+            $number = trim($number);
+            if (str_starts_with($number, '0')) {
+                return '62' . substr($number, 1);
+            } elseif (str_starts_with($number, '+')) {
+                return substr($number, 1);
+            }
+            return $number;
+        }, $targets);
+
+        $finalTarget = implode(',', $formattedTargets);
+
+        // MENGIRIM BROADCAST DENGAN DELAY AMAN
+        $response = Http::withHeaders([
+            'Authorization' => $token,
+        ])->asForm()->post('https://api.fonnte.com/send', [
+            'target' => $finalTarget,
+            'message' => $request->message,
+            /*
+               Mengubah delay dari '2' menjadi '10-20'.
+               Ini akan memberikan jeda acak antara 10 hingga 20 detik
+               antar pesan agar tidak terdeteksi sebagai bot oleh WhatsApp.
+            */
+            'delay' => '10-20',
+            'countryCode' => '62',
+        ]);
+
+        return response()->json([
+            'status' => $response->successful(),
+            'message' => $response->successful() ? 'Berhasil dikirim' : 'Gagal mengirim ke Fonnte',
+            'data' => $response->json(),
+        ], $response->status());
+    }
+}

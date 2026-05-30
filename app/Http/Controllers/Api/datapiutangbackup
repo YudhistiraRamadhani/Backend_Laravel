@@ -1,0 +1,90 @@
+<?php
+namespace App\Http\Controllers\Api;
+use App\Http\Controllers\Controller;
+use App\Models\Datapiutang;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
+use App\Models\Piutang;
+use App\Models\DataPelanggan;
+use App\Http\Controllers\DataPelangganController;
+class DatapiutangController extends Controller {
+public function getPelanggan()
+{
+    // Mengambil nama dan no_whatsapp dari model Pelanggan
+    $pelanggan = \App\Models\DataPelanggan::select('nama_pelanggan', 'no_whatsapp')->get();
+
+    return response()->json($pelanggan);
+}
+public function index()
+{
+    // Mengambil semua data tanpa membungkusnya dalam objek pagination
+    return response()->json(Piutang::all());
+}
+
+public function store(Request $request)
+{
+    $request->validate([
+        'nama_pelanggan' => 'required|string',
+        'jumlah_hutang' => 'required|integer',
+        'nama_barang' => 'required|string',
+        'harga' => 'required|integer',
+        'status' => 'required|string',
+        'no_whatsapp' => 'required|string',
+        'pesanpenagihan' => 'nullable|string',
+        'date' => 'nullable|date',
+    ]);
+
+    $piutang = Piutang::create([
+        'nama_pelanggan' => $request->nama_pelanggan,
+        'jumlah_hutang' => $request->jumlah_hutang,
+        'nama_barang' => $request->nama_barang,
+        'harga' => $request->harga,
+        'status' => $request->status,
+        'no_whatsapp' => $request->no_whatsapp,
+        'pesanpenagihan' => $request->pesanpenagihan,
+        'date' => $request->date,
+    ]);
+
+    return response()->json($piutang, 201);
+}
+public function update(Request $request, $id)
+{
+    // 1. Cari data piutang berdasarkan ID
+    $piutang = Piutang::find($id);
+
+    // Jika data tidak ditemukan, kirim error 404 bukan 500
+    if (!$piutang) {
+        return response()->json(['message' => 'Data tidak ditemukan'], 404);
+    }
+
+    // 2. Gunakan Validasi yang fleksibel (sometimes)
+    // 'sometimes' artinya field tersebut hanya divalidasi JIKA dikirim dari Flutter
+    $validatedData = $request->validate([
+        'nama_pelanggan' => 'sometimes|required|string',
+        'jumlah_hutang'  => 'sometimes|required|integer',
+        'nama_barang'    => 'sometimes|required|string',
+        'harga'          => 'sometimes|required|integer',
+        'status'         => 'sometimes|required|string',
+        'no_whatsapp'    => 'sometimes|required|string',
+        'pesanpenagihan' => 'sometimes|nullable|string',
+        'date' => 'sometimes|nullable|date',
+    ]);
+
+    // 3. Update data yang masuk saja
+    $piutang->update($validatedData);
+
+    return response()->json([
+        'success' => true,
+        'message' => 'Data berhasil diperbarui',
+        'data'    => $piutang
+    ]);
+}
+public function destroy($id)
+{
+    $piutang = Piutang::find($id);
+    $piutang->delete();
+    return response()->json([
+        'message' => 'Data berhasil dihapus'
+    ]);
+}
+}

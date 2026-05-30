@@ -1,0 +1,371 @@
+<?php
+
+namespace App\Http\Controllers\Api;
+
+use App\Models\Transaksi;
+use App\Models\Produk;
+use App\Models\LaporanKeuangan;
+use App\Http\Controllers\Controller;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+
+class TransaksiController extends Controller
+{
+    // GET semua transaksi
+    public function index(Request $request)
+    {
+        $query = Transaksi::query();
+
+        if ($request->has('search')) {
+            $query->where('Nama_Barang', 'like', '%' . $request->search . '%');
+        }
+        if ($request->has('month')) {
+            $query->whereMonth('Tanggal', $request->month);
+        }
+        if ($request->has('year')) {
+            $query->whereYear('Tanggal', $request->year);
+        }
+
+        return response()->json(['data' => $query->latest()->get()]);
+    }
+
+    // GET list produk untuk autocomplete
+    public function getProdukList()
+    {
+        try {
+            $produks = Produk::select('id', 'Nama_Barang', 'Harga', 'jenis_barang', 'Stok')
+                            ->orderBy('Nama_Barang')
+                            ->get();
+            return response()->json($produks, 200);
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
+    // STORE transaksi (BISA UNTUK BARANG BARU & BARANG LAMA)
+    public function store(Request $request)
+    {
+        try {
+            Log::info('Request Transaksi:', $request->all());
+
+            // Validasi input
+            $request->validate([
+                'Nama_Barang'     => 'required|string',
+                'Harga'           => 'required|numeric|min:0',
+                'Jumlah'          => 'required|numeric|min:1',
+                'Tanggal'         => 'required|date',
+                'jenis_transaksi' => 'required|string|in:Pemasukan,Pengeluaran',
+                'jenis_barang'    => 'nullable|string',
+                'nama_supplier'   => 'nullable|string',
+                'deskripsi'       => 'nullable|string',
+            ]);
+
+            $namaBarang = trim($request->Nama_Barang);
+            $jumlahInput = (int) $request->Jumlah;
+            $hargaInput = (int) $request->Harga;
+            $total = $hargaInput * $jumlahInput;
+            $jenisTransaksi = $request->jenis_transaksi;
+
+            DB::beginTransaction();
+
+            // 🔥 PERUBAHAN: Cari produk, TIDAK MEMBATALKAN jika tidak ditemukan
+            $produk = Produk::whereRaw('LOWER("Nama_Barang") = ?', [strtolower($namaBarang)])
+                           ->orWhere('Nama_Barang', 'ILIKE', $namaBarang)
+                           ->first();
+
+            // Variabel untuk tracking stok
+            $stokAkhir = null;
+            $stokBerubah = null;
+            $isProdukBaru = false;
+
+            // ========== LOGIKA STOK (HANYA JIKA PRODUK DITEMUKAN) ==========
+            if ($produk) {
+                if ($jenisTransaksi == 'Pemasukan') {
+                    // PEMASUKAN = PENJUALAN = STOK BERKURANG
+                    if ($produk->Stok < $jumlahInput) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'Stok tidak cukup! Sisa stok: ' . $produk->Stok
+                        ], 400);
+                    }
+                    $produk->decrement('Stok', $jumlahInput);
+                    $stokAkhir = $produk->Stok;
+                    $stokBerubah = "-{$jumlahInput}";
+                } else {
+                    // PENGELUARAN = PEMBELIAN = STOK BERTAMBAH
+                    $produk->increment('Stok', $jumlahInput);
+                    $stokAkhir = $produk->Stok;
+                    $stokBerubah = "+{$jumlahInput}";
+                }
+            } else {
+                // 🔥 PRODUK BARU: Catat log dan lanjutkan
+                $isProdukBaru = true;
+                Log::warning("Produk baru '{$namaBarang}' tidak ada di database, transaksi tetap disimpan");
+                $stokBerubah = "Produk baru - stok tidak terkelola otomatis";
+            }
+
+            // Deskripsi default
+            $deskripsiDefault = ($jenisTransaksi == 'Pemasukan')
+                ? 'Penjualan barang'
+                : 'Pembelian stok barang';
+
+            // ========== SIMPAN KE TABEL TRANSAKSI ==========
+            $transaksi = Transaksi::create([
+                'Nama_Barang'     => $namaBarang,
+                'Harga'           => $hargaInput,
+                'Jumlah'          => $jumlahInput,
+                'Tanggal'         => $request->Tanggal,
+                'jenis_transaksi' => $jenisTransaksi,
+                'jenis_barang'    => $request->jenis_barang ?? ($produk ? $produk->jenis_barang : 'Barang'),
+                'nama_supplier'   => $request->nama_supplier ?? '-',
+                'deskripsi'       => $request->deskripsi ?? $deskripsiDefault,
+            ]);
+
+            // ========== SIMPAN KE LAPORAN KEUANGAN ==========
+            if ($jenisTransaksi == 'Pemasukan') {
+                // PENJUALAN → PENDAPATAN
+                $pendapatan = $total;
+                $pengeluaran = 0;
+            } else {
+                // PEMBELIAN → PENGELUARAN
+                $pendapatan = 0;
+                $pengeluaran = $total;
+            }
+
+            $laporan = LaporanKeuangan::create([
+                'nama_barang'     => $namaBarang,
+                'harga'           => $hargaInput,
+                'jumlah'          => $jumlahInput,
+                'tanggal'         => $request->Tanggal,
+                'jenis_transaksi' => $jenisTransaksi,
+                'jenis_barang'    => $request->jenis_barang ?? ($produk ? $produk->jenis_barang : 'Barang'),
+                'nama_supplier'   => $request->nama_supplier ?? '-',
+                'deskripsi'       => $request->deskripsi ?? $deskripsiDefault,
+                'pendapatan'      => $pendapatan,
+                'pengeluaran'     => $pengeluaran,
+            ]);
+
+            DB::commit();
+
+            // Response message
+            if ($isProdukBaru) {
+                $message = "Transaksi untuk '{$namaBarang}' berhasil disimpan sebagai produk baru!";
+            } else {
+                $message = ($jenisTransaksi == 'Pemasukan')
+                    ? "Penjualan berhasil! Stok '{$produk->Nama_Barang}' berkurang {$jumlahInput} unit (Sisa: {$stokAkhir})"
+                    : "Pembelian berhasil! Stok '{$produk->Nama_Barang}' bertambah {$jumlahInput} unit (Sisa: {$stokAkhir})";
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => $message,
+                'data' => [
+                    'transaksi' => $transaksi,
+                    'laporan' => $laporan,
+                    'stok_sekarang' => $stokAkhir,
+                    'stok_berubah' => $stokBerubah,
+                    'total' => $total,
+                    'jenis_transaksi' => $jenisTransaksi,
+                    'is_produk_baru' => $isProdukBaru
+                ]
+            ], 201);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error("Database error: " . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal memproses transaksi: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    // UPDATE transaksi
+    public function update(Request $request, $id)
+    {
+        try {
+            $transaksi = Transaksi::findOrFail($id);
+
+            // Hitung selisih untuk update stok
+            $oldJumlah = (int) $transaksi->Jumlah;
+            $oldHarga = (int) $transaksi->Harga;
+            $newJumlah = (int) $request->Jumlah;
+            $newHarga = (int) $request->Harga;
+            $selisihJumlah = $newJumlah - $oldJumlah;
+
+            // Update stok produk jika ada
+            $produk = Produk::where('Nama_Barang', $transaksi->Nama_Barang)->first();
+            if ($produk) {
+                if ($transaksi->jenis_transaksi == 'Pemasukan') {
+                    // Penjualan: stok berkurang
+                    $produk->decrement('Stok', $selisihJumlah);
+                } else {
+                    // Pembelian: stok bertambah
+                    $produk->increment('Stok', $selisihJumlah);
+                }
+            }
+
+            $transaksi->update($request->all());
+
+            // Update laporan keuangan
+            LaporanKeuangan::where('nama_barang', $transaksi->Nama_Barang)
+                          ->where('tanggal', $transaksi->Tanggal)
+                          ->update([
+                              'harga' => $newHarga,
+                              'jumlah' => $newJumlah,
+                              'pendapatan' => ($transaksi->jenis_transaksi == 'Pemasukan') ? ($newHarga * $newJumlah) : 0,
+                              'pengeluaran' => ($transaksi->jenis_transaksi == 'Pengeluaran') ? ($newHarga * $newJumlah) : 0,
+                          ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Data berhasil diupdate',
+                'data' => $transaksi
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal update: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    // DELETE transaksi
+    public function destroy($id)
+    {
+        try {
+            $transaksi = Transaksi::findOrFail($id);
+
+            // Kembalikan stok jika perlu
+            $produk = Produk::where('Nama_Barang', $transaksi->Nama_Barang)->first();
+            if ($produk) {
+                if ($transaksi->jenis_transaksi == 'Pemasukan') {
+                    // Jika menghapus penjualan, stok harus kembali
+                    $produk->increment('Stok', $transaksi->Jumlah);
+                } else {
+                    // Jika menghapus pembelian, stok harus berkurang
+                    $produk->decrement('Stok', $transaksi->Jumlah);
+                }
+            }
+
+            // Hapus laporan keuangan terkait
+            LaporanKeuangan::where('nama_barang', $transaksi->Nama_Barang)
+                          ->where('tanggal', $transaksi->Tanggal)
+                          ->where('harga', $transaksi->Harga)
+                          ->where('jumlah', $transaksi->Jumlah)
+                          ->delete();
+
+            // Hapus transaksi
+            $transaksi->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Data berhasil dihapus'
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal hapus: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    // GET laporan keuangan
+    public function getLaporanKeuangan()
+    {
+        try {
+            $laporan = LaporanKeuangan::orderBy('tanggal', 'desc')->get();
+            return response()->json(['data' => $laporan], 200);
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
+    // STORE VOUCHER
+    public function storeVoucher(Request $request)
+    {
+        try {
+            Log::info('Voucher Request:', $request->all());
+
+            // Validasi input
+            $request->validate([
+                'Nama_Barang'     => 'required|string',
+                'Harga'           => 'required|numeric|min:0',
+                'Jumlah'          => 'required|numeric|min:1',
+                'Tanggal'         => 'required|date',
+                'jenis_barang'    => 'required|string|in:Voucher,Kartu Provider',
+                'nama_supplier'   => 'nullable|string',
+                'deskripsi'       => 'nullable|string',
+                'jenis_transaksi' => 'nullable|string',
+            ]);
+
+            $namaBarang = trim($request->Nama_Barang);
+            $jumlahInput = (int) $request->Jumlah;
+            $hargaInput = (int) $request->Harga;
+            $total = $hargaInput * $jumlahInput;
+
+            // Deskripsi default jika kosong
+            $deskripsi = $request->deskripsi;
+            if (empty($deskripsi) || $deskripsi == "-") {
+                $deskripsi = "Pembelian " . $request->jenis_barang;
+            }
+
+            DB::beginTransaction();
+
+            // UPDATE STOK PRODUK (jika produk ada di database)
+            $produk = Produk::where('Nama_Barang', 'ILIKE', $namaBarang)->first();
+
+            if ($produk) {
+                if ($produk->Stok < $jumlahInput) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Stok voucher tidak cukup! Sisa: ' . $produk->Stok
+                    ], 400);
+                }
+                $produk->decrement('Stok', $jumlahInput);
+                Log::info("Stok produk '{$namaBarang}' berkurang {$jumlahInput}. Sisa: {$produk->Stok}");
+            } else {
+                Log::warning("Produk '{$namaBarang}' tidak ditemukan di database, tetap simpan ke laporan");
+            }
+
+            // SIMPAN KE LAPORAN KEUANGAN
+            $laporan = LaporanKeuangan::create([
+                'nama_barang'     => $namaBarang,
+                'harga'           => $hargaInput,
+                'jumlah'          => $jumlahInput,
+                'tanggal'         => $request->Tanggal,
+                'jenis_transaksi' => 'Pengeluaran',
+                'jenis_barang'    => $request->jenis_barang,
+                'nama_supplier'   => $request->nama_supplier ?? '-',
+                'deskripsi'       => $deskripsi,
+                'pendapatan'      => 0,
+                'pengeluaran'     => $total,
+            ]);
+
+            DB::commit();
+
+            Log::info('Voucher berhasil disimpan ke LaporanKeuangan ID: ' . $laporan->id);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Transaksi voucher berhasil disimpan',
+                'data' => [
+                    'laporan' => $laporan,
+                    'id' => $laporan->id,
+                    'total_pengeluaran' => $total,
+                    'stok_berkurang' => $jumlahInput
+                ]
+            ], 201);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error("Voucher Error: " . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal menyimpan: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+}
+

@@ -1,0 +1,119 @@
+<?php
+
+namespace App\Http\Controllers\Api;
+
+use App\Models\Transaksi;
+use App\Models\Produk;
+use App\Models\LaporanKeuangan;
+use App\Http\Controllers\Controller;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+
+class TransaksiController extends Controller
+{
+    public function index(Request $request)
+    {
+        $query = Transaksi::query();
+        if ($request->has('search')) {
+            $query->where('Nama_Barang', 'like', '%' . $request->search . '%');
+        }
+        if ($request->has('month')) {
+            $query->whereMonth('Tanggal', $request->month);
+        }
+        if ($request->has('year')) {
+            $query->whereYear('Tanggal', $request->year);
+        }
+        return response()->json(['data' => $query->latest()->get()]);
+    }
+
+    public function getProdukList()
+    {
+        try {
+            $produks = Produk::select('id', 'Nama_Barang', 'Harga', 'jenis_barang', 'Stok')->get();
+            return response()->json($produks, 200);
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
+    public function store(Request $request)
+    {
+        $request->validate([
+        'Nama_Barang'     => 'required|string',
+        'Harga'           => 'required|numeric',
+        'Jumlah'          => 'required|numeric',
+        'Tanggal'         => 'required|date',
+        'jenis_transaksi' => 'required|string',
+        'jenis_barang'    => 'nullable|string',
+        'nama_supplier'   => 'nullable|string',
+        'deskripsi'       => 'nullable|string',
+        ]);
+
+        return DB::transaction(function () use ($request) {
+            // 1. Normalisasi input agar tidak sensitif terhadap spasi atau huruf besar
+            $jenisRaw = strtolower(trim($request->jenis_transaksi));
+            $jumlahInput = (int)$request->jumlah;
+            $totalHarga = (int)$request->harga * $jumlahInput;
+
+            // 2. Simpan Transaksi
+            $transaksi = Transaksi::create([
+                'Nama_Barang'     => $request->nama_barang,
+                'Harga'           => $request->harga,
+                'Jumlah'          => $jumlahInput,
+                'Tanggal'         => $request->tanggal,
+                'jenis_transaksi' => ucfirst($jenisRaw),
+                'jenis_barang'    => $request->jenis_barang,
+                'nama_supplier'   => $request->nama_supplier,
+                'deskripsi'       => $request->deskripsi,
+            ]);
+
+            // 3. Simpan Laporan Keuangan
+            LaporanKeuangan::create([
+                'nama_barang'   => $request->nama_barang,
+                'pendapatan'    => ($jenisRaw === 'pemasukan') ? $totalHarga : 0,
+                'pengeluaran'   => ($jenisRaw === 'pengeluaran' || $jenisRaw === 'voucher') ? $totalHarga : 0,
+                'harga'         => $request->harga,
+                'jumlah'        => $jumlahInput,
+                'tanggal'       => $request->tanggal,
+                'jenis_barang'  => $request->jenis_barang,
+                'nama_supplier' => $request->nama_supplier,
+            ]);
+
+            // 4. Update Stok (Logika Pengurangan yang Diperketat)
+           // 4. Update Stok (Gunakan Nama_Barang)
+        $produk = Produk::where('Nama_Barang', $request->Nama_Barang)->first();
+
+        if ($produk) {
+            // Logika: Pemasukan barang MASUK ke toko (mengurangi stok gudang/pusat)
+            if ($jenisRaw === 'pemasukan') {
+                $produk->Stok = (int)$produk->Stok - $jumlahInput;
+            }
+            else if ($jenisRaw === 'pengeluaran' || $jenisRaw === 'voucher') {
+                $produk->Stok = (int)$produk->Stok + $jumlahInput;
+            }
+            $produk->save();
+        }
+
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Berhasil disimpan dan stok diperbarui',
+                'data'    => $transaksi
+            ], 201);
+        });
+    }
+
+    public function update(Request $request, $id)
+    {
+        $transaksi = Transaksi::findOrFail($id);
+        $transaksi->update($request->all());
+        return response()->json(['status' => 'success', 'data' => $transaksi]);
+    }
+
+    public function destroy($id)
+    {
+        $transaksi = Transaksi::findOrFail($id);
+        $transaksi->delete();
+        return response()->json(['message' => 'Berhasil dihapus'], 200);
+    }
+}

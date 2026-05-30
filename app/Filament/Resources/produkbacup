@@ -1,0 +1,131 @@
+<?php
+
+namespace App\Filament\Resources;
+
+use App\Filament\Resources\ProdukResource\Pages;
+use App\Models\Produk;
+use Filament\Forms;
+use Filament\Forms\Form;
+use Filament\Resources\Resource;
+use Filament\Tables;
+use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
+
+class ProdukResource extends Resource
+{
+    protected static ?string $model = Produk::class;
+
+    protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
+    protected static ?string $navigationLabel = 'Produk';
+    protected static ?string $pluralLabel = 'Produk';
+
+    public static function form(Form $form): Form
+    {
+        return $form
+            ->schema([
+                Forms\Components\Card::make()
+                    ->schema([
+                        Forms\Components\TextInput::make('Nama_Barang')
+                            ->label('Nama Barang')
+                            ->required()
+                            ->maxLength(255),
+
+                        Forms\Components\TextInput::make('Harga')
+                            ->label('Harga')
+                            ->required()
+                            ->numeric()
+                            ->prefix('Rp'),
+
+                        Forms\Components\TextInput::make('Stok')
+                            ->label('Stok')
+                            ->required()
+                            ->numeric()
+                            ->default(0),
+
+                        Forms\Components\TextInput::make('jenis_barang')
+                            ->label('Jenis Barang')
+                            ->required(),
+
+                        Forms\Components\FileUpload::make('image')
+                            ->label('Gambar Produk')
+                            ->image()
+                            ->disk('public')
+                            ->directory('produk')
+                            ->nullable(),
+                    ])
+                    ->columns(2),
+            ]);
+    }
+
+    public static function table(Table $table): Table
+    {
+        return $table
+            ->columns([
+                // Gunakan nama kolom asli (tanpa kutip manual) agar Accessor bekerja
+                Tables\Columns\TextColumn::make('Nama_Barang')
+                    ->label('Nama Barang')
+                    ->searchable(query: function (Builder $query, string $search): Builder {
+                        // Gunakan kutip ganda manual hanya untuk query SQL mentah
+                        return $query->where('"Nama_Barang"', 'ilike', "%{$search}%");
+                    })
+                    ->sortable(query: function (Builder $query, string $direction): Builder {
+                        return $query->orderBy('"Nama_Barang"', $direction);
+                    }),
+
+                Tables\Columns\TextColumn::make('Harga')
+                    ->label('Harga')
+                    ->money('IDR')
+                    ->sortable(query: function (Builder $query, string $direction): Builder {
+                        return $query->orderBy('"Harga"', $direction);
+                    }),
+
+                Tables\Columns\TextColumn::make('Stok')
+                    ->label('Stok')
+                    ->sortable(query: function (Builder $query, string $direction): Builder {
+                        return $query->orderBy('"Stok"', $direction);
+                    }),
+
+                Tables\Columns\TextColumn::make('jenis_barang')
+                    ->label('Jenis Barang')
+                    ->searchable(),
+
+                Tables\Columns\ImageColumn::make('image')
+                    ->disk('public')
+                    ->label('Gambar Produk')
+                    ->width(80)
+                    ->height(80),
+            ])
+            ->filters([
+                Tables\Filters\Filter::make('stok_minimum')
+                    ->label('Stok <= 10')
+                    ->query(fn (Builder $query): Builder => $query->where('"Stok"', '<=', 10)),
+
+                Tables\Filters\SelectFilter::make('jenis_barang')
+                    ->label('Jenis Barang')
+                    ->options([
+                        'Produk' => 'Produk',
+                        'Voucher' => 'Voucher',
+                        'Kartu Provider' => 'Kartu Provider',
+                    ]),
+            ])
+            ->actions([
+                Tables\Actions\EditAction::make()->color('warning'),
+                Tables\Actions\DeleteAction::make(),
+            ])
+            ->bulkActions([
+                Tables\Actions\BulkActionGroup::make([
+                    Tables\Actions\DeleteBulkAction::make(),
+                ]),
+            ])
+            ->defaultSort('created_at', 'desc');
+    }
+
+    public static function getPages(): array
+    {
+        return [
+            'index' => Pages\ListProduks::route('/'),
+            'create' => Pages\CreateProduk::route('/create'),
+            'edit' => Pages\EditProduk::route('/{record}/edit'),
+        ];
+    }
+}

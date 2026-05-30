@@ -1,0 +1,90 @@
+<?php
+
+namespace App\Http\Controllers\Api;
+
+use App\Http\Controllers\Controller;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+use App\Models\LaporanKeuangan; // Menggunakan model LaporanKeuangan Anda
+
+class DashboardController extends Controller
+{
+    public function getSummary(): JsonResponse
+    {
+        try {
+            $totalPendapatan = 0;
+            $totalPengeluaran = 0;
+
+            // 1. Ambil data dari tabel laporan_keuangan menggunakan Eloquent Model
+            if (Schema::hasTable('laporan_keuangan')) {
+                // Ambil nilai sum murni dari kolom pendapatan & pengeluaran terlebih dahulu
+                $sumPendapatanMurni = LaporanKeuangan::sum('pendapatan') ?? 0;
+                $sumPengeluaranMurni = LaporanKeuangan::sum('pengeluaran') ?? 0;
+
+                if ($sumPendapatanMurni > 0 || $sumPengeluaranMurni > 0) {
+                    // Jika kolom pendapatan/pengeluaran terisi angka langsung, gunakan nilai ini
+                    $totalPendapatan = $sumPendapatanMurni;
+                    $totalPengeluaran = $sumPengeluaranMurni;
+                } else {
+                    // FALLBACK: Jika bernilai 0 karena kalkulasi disimpan di kolom (harga * jumlah)
+
+                    // Hitung total pendapatan (harga * jumlah)
+                    $totalPendapatan = LaporanKeuangan::where(function($query) {
+                            $query->where('pendapatan', '>', 0)
+                                  ->orWhereNull('pengeluaran');
+                        })
+                        ->select(DB::raw('SUM(CAST(COALESCE(harga, 0) AS NUMERIC) * CAST(COALESCE(jumlah, 0) AS NUMERIC)) as total'))
+                        ->value('total') ?? 0;
+
+                    // Hitung total pengeluaran (harga * jumlah)
+                    $totalPengeluaran = LaporanKeuangan::where('pengeluaran', '>', 0)
+                        ->select(DB::raw('SUM(CAST(COALESCE(harga, 0) AS NUMERIC) * CAST(COALESCE(jumlah, 0) AS NUMERIC)) as total'))
+                        ->value('total') ?? 0;
+                }
+            }
+
+            // Hitung Laba Bersih (Omzet dikurangi pengeluaran)
+            $labaBersih = $totalPendapatan - $totalPengeluaran;
+
+            // 2. Hitung DATA PRODUK untuk Dashboard Toko JS CELL
+            $stokKritikal = 0;
+            $totalSemuaProduk = 0;
+
+            if (Schema::hasTable('produks')) {
+                // Menghitung produk yang stoknya menipis (< 3) sesuai nama kolom 'Stok' di database Anda
+                $stokKritikal = DB::table('produks')->where('Stok', '<', 3)->count();
+                $totalSemuaProduk = DB::table('produks')->count();
+            }
+
+            // 3. Hitung total piutang dari tabel piutang
+            $totalPiutang = 0;
+            if (Schema::hasTable('piutang')) {
+                $totalPiutang = DB::table('piutang')->sum('jumlah_hutang') ?? 0;
+            }
+
+            // Mengembalikan seluruh response JSON secara rapi dan eksplisit
+            return response()->json([
+                'total_omzet' => (int)$labaBersih,              // Laba bersih
+                'total_pemasukan' => (int)$totalPendapatan,     // Total Pemasukan
+                'total_pengeluaran' => (int)$totalPengeluaran,   // Total Pengeluaran
+                'stok_kritikal' => (int)$stokKritikal,
+                'total_produk' => (int)$totalSemuaProduk,
+                'total_piutang' => (int)$totalPiutang,
+                'error_message' => null
+            ], 200);
+
+        } catch (\Exception $e) {
+            // Response fallback jika terjadi error sistem internal
+            return response()->json([
+                'total_omzet' => 0,
+                'total_pemasukan' => 0,
+                'total_pengeluaran' => 0,
+                'stok_kritikal' => 0,
+                'total_produk' => 0,
+                'total_piutang' => 0,
+                'error_message' => "Kalkulasi Gagal: " . $e->getMessage()
+            ], 200);
+        }
+    }
+}

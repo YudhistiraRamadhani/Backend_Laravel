@@ -1,0 +1,103 @@
+<?php
+
+namespace App\Http\Controllers\Api;
+
+use App\Http\Controllers\Controller;
+use App\Models\LaporanKeuangan;
+use Illuminate\Http\Request;
+use App\Models\Transaksi;
+use App\Models\TransaksiPengeluaranVoucher;
+class LaporankeuanganController extends Controller
+{
+
+   public function index()
+    {
+ return response()->json(LaporanKeuangan::orderBy('id', 'asc')->get(), 200);
+
+
+
+    }
+public function store(Request $request)
+{
+    try {
+        $harga = (int) $request->harga;
+        $jumlah = (int) $request->jumlah;
+        $total = $harga * $jumlah;
+
+        $pendapatan = 0;
+        $pengeluaran = 0;
+
+        // Logic pemisahan kolom berdasarkan jenis_transaksi yang dikirim Flutter
+        if (strtolower($request->jenis_transaksi) == 'pemasukan') {
+            $pendapatan = $total;
+        } else {
+            $pengeluaran = $total;
+        }
+
+        $laporan = LaporanKeuangan::create([
+            'pendapatan'    => $pendapatan,
+            'pengeluaran'   => $pengeluaran,
+            'nama_barang'   => $request->nama_barang,
+            'harga'         => $harga,
+            'jumlah'        => $jumlah,
+            'tanggal'       => $request->tanggal,
+            'jenis_barang'  => $request->jenis_barang, // Ini akan berisi 'Voucher' atau 'Kartu Provider'
+            'nama_supplier' => $request->nama_supplier,
+        ]);
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Data berhasil disimpan ke Laporan Keuangan',
+            'data'   => $laporan
+        ], 201);
+
+    } catch (\Exception $e) {
+        return response()->json([
+            'status' => 'error',
+            'message' => $e->getMessage()
+        ], 500);
+    }
+}
+    public function update(Request $request, $id)
+    {
+        $laporan = LaporanKeuangan::find($id);
+
+        if (!$laporan) {
+            return response()->json(['message' => 'Laporan keuangan tidak ditemukan'], 404);
+        }
+
+        // Validasi update
+        $request->validate([
+            'Nama_Barang'     => 'sometimes|string',
+            'Harga'           => 'sometimes|integer',
+            'jenis_transaksi' => 'sometimes|string',
+            'Tanggal'         => 'sometimes|date',
+        ]);
+
+        // Ambil data lama sebagai default jika tidak ada di request
+        $harga = $request->Harga ?? $laporan->harga;
+        $jenis = $request->jenis_transaksi ?? $laporan->jenis_transaksi;
+
+        // RE-CALCULATE: Hitung ulang pendapatan/pengeluaran jika ada perubahan harga/jenis
+        $pendapatan = ($jenis == 'Pemasukan') ? $harga : 0;
+        $pengeluaran = ($jenis == 'Pengeluaran') ? $harga : 0;
+
+        $laporan->update([
+            'nama_barang'     => $request->Nama_Barang ?? $laporan->nama_barang,
+            'nama_supplier'   => $request->nama_supplier ?? $laporan->nama_supplier,
+            'jenis_barang'    => $request->jenis_barang ?? $laporan->jenis_barang,
+            'harga'           => $harga,
+            'jumlah'          => $request->Jumlah ?? $laporan->jumlah,
+            'tanggal'         => $request->Tanggal ?? $laporan->tanggal,
+            'pendapatan'      => $pendapatan,
+            'pengeluaran'     => $pengeluaran,
+            'jenis_transaksi' => $jenis,
+
+        ]);
+
+        return response()->json([
+            'status' => 'success',
+            'data' => $laporan
+        ]);
+    }
+}
