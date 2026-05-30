@@ -1,7 +1,7 @@
 # Gunakan PHP 8.1
 FROM php:8.1-fpm
 
-# Install dependensi sistem dan ekstensi PHP yang dibutuhkan Laravel
+# Install dependensi sistem
 RUN apt-get update && apt-get install -y \
     nginx \
     libpq-dev \
@@ -13,16 +13,19 @@ RUN apt-get update && apt-get install -y \
 # Install Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-# Install Node.js untuk build aset (Vite/Filament)
+# Install Node.js
 RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
     && apt-get install -y nodejs
 
-# Konfigurasi Nginx
-COPY ./nginx.conf /etc/nginx/sites-available/default
-
-# Salin kode aplikasi
-COPY . /var/www/html
+# Set Working Directory terlebih dahulu
 WORKDIR /var/www/html
+
+# Salin seluruh kode aplikasi ke dalam container
+COPY . .
+
+# Konfigurasi Nginx (Pastikan nginx.conf ada di root)
+# Menggunakan jalur absolut agar lebih aman
+COPY nginx.conf /etc/nginx/sites-available/default
 
 # Install dependensi Laravel & Build aset
 RUN composer install --no-dev --optimize-autoloader
