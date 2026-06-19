@@ -22,10 +22,13 @@ RUN composer install --no-dev --optimize-autoloader
 RUN chown -R www-data:www-data /var/www/html/public /var/www/html/storage /var/www/html/bootstrap/cache \
     && chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
 
+
+
 # Perbaiki start.sh: Jalankan Nginx di depan agar error terlihat di log
 RUN echo '#!/bin/bash\n\
 php artisan migrate --force\n\
 php artisan db:seed --force\n\
+php artisan storage:link --force\n\
 service nginx start\n\
 php-fpm' > /start.sh && chmod +x /start.sh
 
