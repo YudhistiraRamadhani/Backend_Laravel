@@ -12,7 +12,10 @@ use App\Http\Controllers\Api\FonntePenagihanNotificationController;
 use App\Http\Controllers\Api\BroadcastController;
 use App\Http\Controllers\Api\DashboardController;
 // --- ROUTE TANPA LOGIN (Agar Flutter tidak loading/401) ---
-
+Route::get('/cron-trigger', function () {
+    Artisan::call('schedule:run');
+    return 'Scheduler executed successfully!';
+});
 // Route Master Data
 Route::apiResource('pelanggan', DataPelangganController::class);
 Route::apiResource('produks', ProdukController::class);
