@@ -63,7 +63,7 @@ public function store(Request $request)
 //     $laporan = LaporanKeuangan::find($id);
 
 //     if (!$laporan) {
-//         return response()->json(['message' => 'Laporan keuangan tidak ditemukan'], 404);
+//         return response()->json(['message' => 'Laporan keuangan tidak ditemukan'], 404)
 //     }
 
 //     // Gunakan 'numeric' alih-alih 'integer' agar string angka dari Flutter diterima
@@ -83,7 +83,7 @@ public function store(Request $request)
 //     $total = (int)$harga * (int)$jumlah;
 
 //     $pendapatan = (strtolower($jenis) == 'pemasukan') ? $total : 0;
-//     $pengeluaran = (strtolower($jenis) == 'pengeluaran') ? $total : 0;
+//     $pengeluaran = (strtolower($jenis) == 'pengeluaran') ? $total : 0
 
 //     $laporan->update([
 //         'nama_barang'     => $request->nama_barang ?? $request->Nama_Barang ?? $laporan->nama_barang,
@@ -95,12 +95,12 @@ public function store(Request $request)
 //         'pendapatan'      => $pendapatan,
 //         'pengeluaran'     => $pengeluaran,
 //         'jenis_transaksi' => $jenis,
-//     ]);
+//     ])
 
 //     return response()->json([
 //         'status' => 'success',
 //         'data' => $laporan
-//     ]);
+//     ])
 // }
 public function update(Request $request, $id)
 {
