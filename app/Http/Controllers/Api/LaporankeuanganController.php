@@ -58,7 +58,51 @@ public function store(Request $request)
         ], 500);
     }
 }
-   public function update(Request $request, $id)
+//    public function update(Request $request, $id)
+// {
+//     $laporan = LaporanKeuangan::find($id);
+
+//     if (!$laporan) {
+//         return response()->json(['message' => 'Laporan keuangan tidak ditemukan'], 404);
+//     }
+
+//     // Gunakan 'numeric' alih-alih 'integer' agar string angka dari Flutter diterima
+//     $request->validate([
+//         'nama_barang'     => 'sometimes|string',
+//         'harga'           => 'sometimes|numeric',
+//         'jumlah'          => 'sometimes|numeric',
+//         'tanggal'         => 'sometimes|date',
+//     ]);
+
+//     // Sinkronisasi input (mengatasi perbedaan huruf kapital antara Request dan Database)
+//     $harga = $request->harga ?? $request->Harga ?? $laporan->harga;
+//     $jumlah = $request->jumlah ?? $request->Jumlah ?? $laporan->jumlah;
+//     $jenis = $request->jenis_transaksi ?? $laporan->jenis_transaksi;
+
+//     // Hitung total (Harga * Jumlah) sesuai logika store Anda
+//     $total = (int)$harga * (int)$jumlah;
+
+//     $pendapatan = (strtolower($jenis) == 'pemasukan') ? $total : 0;
+//     $pengeluaran = (strtolower($jenis) == 'pengeluaran') ? $total : 0;
+
+//     $laporan->update([
+//         'nama_barang'     => $request->nama_barang ?? $request->Nama_Barang ?? $laporan->nama_barang,
+//         'nama_supplier'   => $request->nama_supplier ?? $laporan->nama_supplier,
+//         'jenis_barang'    => $request->jenis_barang ?? $laporan->jenis_barang,
+//         'harga'           => $harga,
+//         'jumlah'          => $jumlah,
+//         'tanggal'         => $request->tanggal ?? $request->Tanggal ?? $laporan->tanggal,
+//         'pendapatan'      => $pendapatan,
+//         'pengeluaran'     => $pengeluaran,
+//         'jenis_transaksi' => $jenis,
+//     ]);
+
+//     return response()->json([
+//         'status' => 'success',
+//         'data' => $laporan
+//     ]);
+// }
+public function update(Request $request, $id)
 {
     $laporan = LaporanKeuangan::find($id);
 
@@ -66,39 +110,54 @@ public function store(Request $request)
         return response()->json(['message' => 'Laporan keuangan tidak ditemukan'], 404);
     }
 
-    // Gunakan 'numeric' alih-alih 'integer' agar string angka dari Flutter diterima
-    $request->validate([
-        'nama_barang'     => 'sometimes|string',
-        'harga'           => 'sometimes|numeric',
-        'jumlah'          => 'sometimes|numeric',
-        'tanggal'         => 'sometimes|date',
-    ]);
-
-    // Sinkronisasi input (mengatasi perbedaan huruf kapital antara Request dan Database)
+    // 1. Ambil input dari Flutter (bisa huruf besar/kecil)
     $harga = $request->harga ?? $request->Harga ?? $laporan->harga;
     $jumlah = $request->jumlah ?? $request->Jumlah ?? $laporan->jumlah;
-    $jenis = $request->jenis_transaksi ?? $laporan->jenis_transaksi;
+    $tanggal = $request->tanggal ?? $request->Tanggal ?? $laporan->tanggal;
+    $namaBarang = $request->nama_barang ?? $request->Nama_Barang ?? $laporan->nama_barang;
 
-    // Hitung total (Harga * Jumlah) sesuai logika store Anda
+    // 2. Hitung total baru (Harga * Jumlah)
     $total = (int)$harga * (int)$jumlah;
 
-    $pendapatan = (strtolower($jenis) == 'pemasukan') ? $total : 0;
-    $pengeluaran = (strtolower($jenis) == 'pengeluaran') ? $total : 0;
+    // 3. Deteksi Jenis Transaksi secara pintar tanpa kolom jenis_transaksi
+    // Kita cek variabel dari Flutter dulu. Jika tidak dikirim, kita cek dari data lama di DB.
+    $jenis = $request->jenis_transaksi ?? $request->Jenis_Transactions ?? null;
 
+    if (!$jenis) {
+        // Jika Flutter tidak kirim jenisnya, kita deteksi dari data lama di database
+        if ((int)$laporan->pendapatan > 0) {
+            $jenis = 'pemasukan';
+        } else {
+            $jenis = 'pengeluaran';
+        }
+    }
+
+    $pendapatan = 0;
+    $pengeluaran = 0;
+
+    // 4. Masukkan total harga ke kolom yang tepat
+    if (strtolower(trim($jenis)) == 'pemasukan') {
+        $pendapatan = $total;
+    } else {
+        $pengeluaran = $total;
+    }
+
+    // 5. Eksekusi update TANPA menyertakan kolom jenis_transaksi
     $laporan->update([
-        'nama_barang'     => $request->nama_barang ?? $request->Nama_Barang ?? $laporan->nama_barang,
-        'nama_supplier'   => $request->nama_supplier ?? $laporan->nama_supplier,
-        'jenis_barang'    => $request->jenis_barang ?? $laporan->jenis_barang,
-        'harga'           => $harga,
-        'jumlah'          => $jumlah,
-        'tanggal'         => $request->tanggal ?? $request->Tanggal ?? $laporan->tanggal,
-        'pendapatan'      => $pendapatan,
-        'pengeluaran'     => $pengeluaran,
-        'jenis_transaksi' => $jenis,
+        'nama_barang'   => $namaBarang,
+        'nama_supplier' => $request->nama_supplier ?? $request->Nama_Supplier ?? $laporan->nama_supplier,
+        'jenis_barang'  => $request->jenis_barang ?? $request->Jenis_Barang ?? $laporan->jenis_barang,
+        'harga'         => $harga,
+        'jumlah'        => $jumlah,
+        'tanggal'       => $tanggal,
+        'pendapatan'    => $pendapatan,
+        'pengeluaran'   => $pengeluaran,
+        // 'jenis_transaksi' DIHAPUS dari sini karena kolomnya tidak ada di database
     ]);
 
     return response()->json([
         'status' => 'success',
+        'message' => 'Data berhasil diperbarui',
         'data' => $laporan
     ]);
 }

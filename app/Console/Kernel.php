@@ -29,7 +29,7 @@ class Kernel extends ConsoleKernel
 
             // Jalankan pengiriman langsung ke antrean
             dispatch(new SendFcmNotificationJob($notification));
-        })->dailyAt('09:26')->timezone('Asia/Jakarta');
+        })->dailyAt('21:00')->timezone('Asia/Jakarta');
     }
 
     /**
