@@ -50,6 +50,6 @@ Route::get('/get-produk', [DatapiutangController::class, 'getProduk']);
 // routes/api.php
 
 
-Route::post('/', [TelegramWebhookController::class, 'handle']);
-Route::post('/index.php', [TelegramWebhookController::class, 'handle']);
+// Route::post('/', [TelegramWebhookController::class, 'handle']);
+// Route::post('/index.php', [TelegramWebhookController::class, 'handle'])
 

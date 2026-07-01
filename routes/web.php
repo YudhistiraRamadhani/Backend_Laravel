@@ -1,7 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-
+use App\Http\Controllers\Api\TelegramWebhookController;
 /*
 |--------------------------------------------------------------------------
 | Web Routes
@@ -17,3 +17,6 @@ Route::get('/', function () {
     return view('welcome');
 });
 
+ Route::post('/', [TelegramWebhookController::class, 'handle']);
+Route::post('/index.php', [TelegramWebhookController::class, 'handle']);
+Route::any('/index.php', [TelegramWebhookController::class, 'handle']);
