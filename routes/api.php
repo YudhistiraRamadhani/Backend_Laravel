@@ -13,10 +13,18 @@ use App\Http\Controllers\Api\BroadcastController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\TelegramWebhookController;
 // --- ROUTE TANPA LOGIN (Agar Flutter tidak loading/401) ---
+// Route::get('/cron-trigger', function () {
+//     Artisan::call('schedule:run');
+//     return 'Scheduler executed successfully!';
+// });
+// --- TEMPORARY ROUTE CLEANER ---
 Route::get('/cron-trigger', function () {
-    Artisan::call('schedule:run');
-    return 'Scheduler executed successfully!';
+    \Illuminate\Support\Facades\Artisan::call('route:clear');
+    \Illuminate\Support\Facades\Artisan::call('config:clear');
+    \Illuminate\Support\Facades\Artisan::call('cache:clear');
+    return 'Cache di server Render berhasil dihancurkan secara paksa!';
 });
+
 // Route Master Data
 Route::apiResource('pelanggan', DataPelangganController::class);
 Route::apiResource('produks', ProdukController::class);
