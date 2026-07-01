@@ -41,3 +41,11 @@ Route::get('/get-pelanggan', [DatapiutangController::class, 'getPelanggan']);
 Route::get('/get-produk', [DatapiutangController::class, 'getProduk']);
 // routes/api.php
 Route::post('/telegram/webhook', [TelegramWebhookController::class, 'handle']);
+
+Route::get('/test', function () {
+    return response()->json([
+        'status' => 'ok',
+        'message' => 'API is working!',
+        'timestamp' => now()->toDateTimeString()
+    ]);
+});
