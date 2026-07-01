@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\FonnteNotificationController;
 use App\Http\Controllers\Api\FonntePenagihanNotificationController;
 use App\Http\Controllers\Api\BroadcastController;
 use App\Http\Controllers\Api\DashboardController;
+use App\Http\Controllers\TelegramWebhookController;
 // --- ROUTE TANPA LOGIN (Agar Flutter tidak loading/401) ---
 Route::get('/cron-trigger', function () {
     Artisan::call('schedule:run');
@@ -38,3 +39,5 @@ Route::post('/broadcast-promo', [BroadcastController::class, 'sendBroadcast']);
 // Route::get('/get-pelanggan', [DatapiutangController::class, 'getPelanggan'])
 Route::get('/get-pelanggan', [DatapiutangController::class, 'getPelanggan']);
 Route::get('/get-produk', [DatapiutangController::class, 'getProduk']);
+// routes/api.php
+Route::post('/telegram/webhook', [TelegramWebhookController::class, 'handle']);

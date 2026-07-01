@@ -16,7 +16,9 @@ return new class extends Migration
             $table->string('nama_pelanggan');
             $table->string('no_whatsapp');
                $table->string('pesannotifikasi')->nullable();
-
+  $table->string('telegram_chat_id')->nullable()->after('pesannotifikasi');
+    $table->string('telegram_username')->nullable()->after('telegram_chat_id');
+    $table->boolean('telegram_active')->default(false)->after('telegram_username');
 
             $table->timestamps();
         });

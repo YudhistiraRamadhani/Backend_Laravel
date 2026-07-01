@@ -12,6 +12,8 @@ class DataPelanggan extends Model
     'nama_pelanggan',
     'no_whatsapp',
     'pesannotifikasi',
-   
+   'telegram_chat_id',
+    'telegram_username',
+    'telegram_active',
 ];
 }

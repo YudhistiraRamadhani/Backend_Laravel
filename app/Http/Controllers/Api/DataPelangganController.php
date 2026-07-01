@@ -29,6 +29,7 @@ class DataPelangganController extends Controller
              'nama_pelanggan' => 'required',
         'no_whatsapp' => 'required',
         'pesannotifikasi' => 'nullable',
+         'telegram_chat_id'=> 'nullable',
 
         ]);
 
@@ -46,6 +47,7 @@ class DataPelangganController extends Controller
             'nama_pelanggan' => $request->nama_pelanggan,
         'no_whatsapp' => $request->no_whatsapp,
        'pesannotifikasi' => $request->pesannotifikasi ?? '',
+        'telegram_chat_id' => $request->telegram_chat_id ?? ''
 
         ]);
 
@@ -67,6 +69,7 @@ class DataPelangganController extends Controller
             'nama_pelanggan'     => 'required',
             'no_whatsapp'   => 'required',
             'pesannotifikasi' => 'required',
+             'telegram_chat_id' => 'required',
         ]);
 
         //check if validation fails
@@ -93,6 +96,7 @@ class DataPelangganController extends Controller
         'no_whatsapp' => $request->no_whatsapp,
         'pesannotifikasi' => $request->pesannotifikasi,
         'tanggal_notifikasi' => $request->tanggal_notifikasi,
+         'telegram_chat_id' => $request->telegram_chat_id,
             ]);
 
         } else {
@@ -103,6 +107,7 @@ class DataPelangganController extends Controller
         'no_whatsapp' => $request->no_whatsapp,
         'pesannotifikasi' => $request->pesannotifikasi,
         'tanggal_notifikasi' => $request->tanggal_notifikasi,
+        'telegram_chat_id' => $request->telegram_chat_id,
             ]);
         }
 
