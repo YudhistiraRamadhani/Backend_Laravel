@@ -1,11 +1,13 @@
 <?php
 
-namespace App\Http\Controllers;
+namespace App\Http\Controllers\Api;
 
+// TAMBAHKAN baris di bawah ini agar class Controller utama terbaca dengan benar
+use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use App\Models\Pelanggan; // Pastikan nama model pelanggan kamu sesuai (misal: Pelanggan)
+use App\Models\Pelanggan;
 
 class TelegramWebhookController extends Controller
 {
@@ -28,7 +30,7 @@ class TelegramWebhookController extends Controller
 
                 if ($pelanggan) {
                     $pelanggan->update([
-                        'chat_id_telegram' => $chatId // Pastikan kamu sudah membuat kolom ini di table pelanggans
+                        'chat_id_telegram' => $chatId
                     ]);
 
                     $this->sendTelegramMessage($chatId, "✅ Halo {$firstName}! Akun Telegram Anda berhasil ditautkan dengan sistem **JS CELL**.");
