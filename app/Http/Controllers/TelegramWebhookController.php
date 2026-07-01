@@ -1,113 +1,52 @@
 <?php
-// app/Http/Controllers/TelegramWebhookController.php
 
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use App\Models\DataPelanggan;
+use App\Models\Pelanggan; // Pastikan nama model pelanggan kamu sesuai (misal: Pelanggan)
 
 class TelegramWebhookController extends Controller
 {
     public function handle(Request $request)
     {
-        try {
-            $update = $request->all();
-            
-            // Log untuk debugging
-            Log::info('Telegram Webhook received:', $update);
-            
-            // Cek apakah ada pesan masuk
-            if (isset($update['message'])) {
-                $message = $update['message'];
-                $chatId = $message['chat']['id'];
-                $text = $message['text'] ?? '';
-                $username = $message['chat']['username'] ?? '';
-                $firstName = $message['chat']['first_name'] ?? '';
+        $update = $request->all();
 
-                // Jika pengguna mengirim /start
-                if ($text == '/start') {
-                    // Simpan chat_id ke database
-                    $this->registerChatId($chatId, $username, $firstName);
-                    
-                    // Balas pesan selamat datang
-                    $token = env('TELEGRAM_BOT_TOKEN');
-                    Http::post("https://api.telegram.org/bot{$token}/sendMessage", [
-                        'chat_id' => $chatId,
-                        'text' => "✅ Selamat! Anda telah terdaftar untuk menerima notifikasi promo dan penagihan.\n\n"
-                            . "Anda akan menerima pesan promo dan pengingat tagihan dari TokoJS.\n"
-                            . "Untuk berhenti, kirim /stop",
-                        'parse_mode' => 'HTML'
+        // Log data untuk monitoring di dashboard Render nanti
+        Log::info('Telegram Webhook Data:', $update);
+
+        if (isset($update['message'])) {
+            $chatId = $update['message']['chat']['id'];
+            $text = $update['message']['text'] ?? '';
+            $firstName = $update['message']['from']['first_name'] ?? '';
+
+            // Jika pelanggan mengetik /start ke TokoJs_bot
+            if (str_contains($text, '/start')) {
+                // Coba cocokkan dengan data pelanggan di database berdasarkan nama depan telegram
+                $pelanggan = Pelanggan::where('nama', 'LIKE', "%{$firstName}%")->first();
+
+                if ($pelanggan) {
+                    $pelanggan->update([
+                        'chat_id_telegram' => $chatId // Pastikan kamu sudah membuat kolom ini di table pelanggans
                     ]);
-                }
-                // Jika pengguna mengirim /stop
-                elseif ($text == '/stop') {
-                    $this->unregisterChatId($chatId);
-                    
-                    $token = env('TELEGRAM_BOT_TOKEN');
-                    Http::post("https://api.telegram.org/bot{$token}/sendMessage", [
-                        'chat_id' => $chatId,
-                        'text' => "❌ Anda telah berhenti menerima notifikasi. Kirim /start untuk aktif kembali.",
-                        'parse_mode' => 'HTML'
-                    ]);
+
+                    $this->sendTelegramMessage($chatId, "✅ Halo {$firstName}! Akun Telegram Anda berhasil ditautkan dengan sistem **JS CELL**.");
+                } else {
+                    $this->sendTelegramMessage($chatId, "👋 Selamat datang di **TokoJS Bot**!\n\nChat ID Anda adalah: `{$chatId}`.\nBerikan ID ini ke admin untuk sinkronisasi data.");
                 }
             }
-
-            return response()->json(['status' => 'ok']);
-
-        } catch (\Exception $e) {
-            Log::error('Telegram Webhook error: ' . $e->getMessage());
-            return response()->json(['status' => 'error'], 500);
         }
+
+        return response()->json(['status' => 'success'], 200);
     }
 
-    private function registerChatId($chatId, $username, $firstName)
+    private function sendTelegramMessage($chatId, $message)
     {
-        try {
-            // Cari pelanggan berdasarkan username atau nama
-            $pelanggan = DataPelanggan::where('telegram_chat_id', $chatId)->first();
-            
-            if (!$pelanggan) {
-                // Jika belum ada, cari berdasarkan username
-                $pelanggan = DataPelanggan::where('telegram_username', $username)->first();
-            }
-            
-            if ($pelanggan) {
-                $pelanggan->telegram_chat_id = $chatId;
-                $pelanggan->telegram_username = $username;
-                $pelanggan->telegram_active = true;
-                $pelanggan->save();
-                
-                Log::info("Chat ID registered: {$chatId} for {$pelanggan->nama_pelanggan}");
-            } else {
-                // Buat pelanggan baru jika belum ada
-                $pelanggan = DataPelanggan::create([
-                    'nama_pelanggan' => $firstName ?? 'Unknown',
-                    'no_whatsapp' => '',
-                    'telegram_chat_id' => $chatId,
-                    'telegram_username' => $username,
-                    'telegram_active' => true,
-                ]);
-                
-                Log::info("New pelanggan created from Telegram: {$firstName}");
-            }
-        } catch (\Exception $e) {
-            Log::error('Register chat ID error: ' . $e->getMessage());
-        }
-    }
-
-    private function unregisterChatId($chatId)
-    {
-        try {
-            DataPelanggan::where('telegram_chat_id', $chatId)->update([
-                'telegram_chat_id' => null,
-                'telegram_active' => false
-            ]);
-            
-            Log::info("Chat ID unregistered: {$chatId}");
-        } catch (\Exception $e) {
-            Log::error('Unregister chat ID error: ' . $e->getMessage());
-        }
+        Http::post("https://api.telegram.org/bot" . env('TELEGRAM_BOT_TOKEN') . "/sendMessage", [
+            'chat_id' => $chatId,
+            'text' => $message,
+            'parse_mode' => 'HTML',
+        ]);
     }
 }
