@@ -17,6 +17,6 @@ Route::get('/', function () {
     return view('welcome');
 });
 
- Route::post('/', [TelegramWebhookController::class, 'handle']);
-Route::post('/index.php', [TelegramWebhookController::class, 'handle']);
-Route::any('/index.php', [TelegramWebhookController::class, 'handle']);
+//  Route::post('/', [TelegramWebhookController::class, 'handle']);
+// Route::post('/index.php', [TelegramWebhookController::class, 'handle']);
+// Route::any('/index.php', [TelegramWebhookController::class, 'handle']);
