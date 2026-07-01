@@ -43,9 +43,10 @@ class TelegramWebhookController extends Controller
         return response()->json(['status' => 'success'], 200);
     }
 
-    private function sendTelegramMessage($chatId, $message)
+   private function sendTelegramMessage($chatId, $message)
     {
-        Http::post("https://api.telegram.org/bot" . env('TELEGRAM_BOT_TOKEN') . "/sendMessage", [
+        // Ganti baris ini agar membaca dari config services
+        Http::post("https://api.telegram.org/bot" . config('services.telegram.bot_token') . "/sendMessage", [
             'chat_id' => $chatId,
             'text' => $message,
             'parse_mode' => 'HTML',
