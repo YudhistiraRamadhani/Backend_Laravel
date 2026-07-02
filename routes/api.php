@@ -55,3 +55,8 @@ Route::get('/get-produk', [DatapiutangController::class, 'getProduk']);
 
 // Daftarkan jalur resmi di dalam routes/api.php
 Route::post('/telegram/webhook', [TelegramWebhookController::class, 'handle']);
+Route::post('/broadcast-telegram', [BroadcastController::class, 'sendTelegram']);
+Route::post('/send-telegram', [BroadcastController::class, 'sendTelegram']);
+Route::post('/send-batch-telegram', [BroadcastController::class, 'sendBatchTelegram']);
+Route::get('/get-chat-id/{phoneNumber}', [BroadcastController::class, 'getChatIdByPhone']);
+Route::post('/send-to-pelanggan/{id}', [BroadcastController::class, 'sendToPelanggan']);

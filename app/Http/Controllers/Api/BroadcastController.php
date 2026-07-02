@@ -11,40 +11,34 @@ class BroadcastController extends Controller
 {
     /**
      * Kirim pesan ke satu nomor WhatsApp
-     * 
+     *
      * @param Request $request
      * @return \Illuminate\Http\JsonResponse
      */
     public function sendBroadcast(Request $request)
     {
-        // 1. Validasi Input
         $request->validate([
-            'target' => 'required|string', // Format: 08123456789
+            'target' => 'required|string',
             'message' => 'required|string',
-            'nama' => 'nullable|string', // Opsional
+            'nama' => 'nullable|string',
         ]);
 
         $token = env('FONNTE_TOKEN', 'ork2zNR3YAQgdTznHbiM');
 
-        // Ambil data
         $number = $request->target;
         $message = $request->message;
         $nama = $request->nama ?? 'Pelanggan';
 
-        // Format nomor
         $formattedTarget = $this->formatNumber($number);
-
-        // Personalisasi pesan (ganti {nama} dengan nama pelanggan)
         $finalMessage = str_replace('{nama}', $nama, $message);
 
         try {
-            // Kirim satu pesan
             $response = Http::withHeaders([
                 'Authorization' => $token,
             ])->asForm()->post('https://api.fonnte.com/send', [
                 'target' => $formattedTarget,
                 'message' => $finalMessage,
-                'delay' => '5-10', // Delay kecil untuk 1 pesan
+                'delay' => '5-10',
             ]);
 
             if ($response->successful()) {
@@ -71,16 +65,15 @@ class BroadcastController extends Controller
 
     /**
      * Kirim pesan ke pelanggan berdasarkan ID
-     * 
+     *
      * @param Request $request
      * @param int $id
      * @return \Illuminate\Http\JsonResponse
      */
     public function sendToPelanggan(Request $request, $id)
     {
-        // Cari pelanggan
         $pelanggan = DataPelanggan::find($id);
-        
+
         if (!$pelanggan) {
             return response()->json([
                 'status' => false,
@@ -88,12 +81,10 @@ class BroadcastController extends Controller
             ], 404);
         }
 
-        // Validasi pesan
         $request->validate([
             'message' => 'required|string',
         ]);
 
-        // Gunakan pesan dari request atau dari database
         $message = $request->message ?? $pelanggan->pesannotifikasi ?? '';
 
         if (empty($message)) {
@@ -103,7 +94,6 @@ class BroadcastController extends Controller
             ], 400);
         }
 
-        // Kirim ke Fonnte
         $token = env('FONNTE_TOKEN', 'ork2zNR3YAQgdTznHbiM');
         $formattedTarget = $this->formatNumber($pelanggan->no_whatsapp);
         $finalMessage = str_replace('{nama}', $pelanggan->nama_pelanggan, $message);
@@ -141,7 +131,7 @@ class BroadcastController extends Controller
 
     /**
      * Format nomor WhatsApp ke format 62
-     * 
+     *
      * @param string $number
      * @return string
      */
@@ -149,21 +139,21 @@ class BroadcastController extends Controller
     {
         $number = trim($number);
         $number = preg_replace('/[^0-9]/', '', $number);
-        
+
         if (str_starts_with($number, '0')) {
             return '62' . substr($number, 1);
         }
-        
+
         if (str_starts_with($number, '62')) {
             return $number;
         }
-        
+
         return $number;
     }
 
     /**
      * Kirim pesan ke Telegram (selain WhatsApp)
-     * 
+     *
      * @param Request $request
      * @return \Illuminate\Http\JsonResponse
      */
@@ -174,7 +164,7 @@ class BroadcastController extends Controller
             'message' => 'required|string',
         ]);
 
-        $token = env('TELEGRAM_BOT_TOKEN');
+        $token = config('services.telegram.bot_token');
 
         if (empty($token)) {
             return response()->json([
@@ -187,7 +177,6 @@ class BroadcastController extends Controller
             $response = Http::post("https://api.telegram.org/bot{$token}/sendMessage", [
                 'chat_id' => $request->chat_id,
                 'text' => $request->message,
-                'parse_mode' => 'HTML',
             ]);
 
             if ($response->successful()) {
@@ -210,5 +199,90 @@ class BroadcastController extends Controller
                 'message' => 'Error: ' . $e->getMessage(),
             ], 500);
         }
+    }
+
+    /**
+     * Kirim pesan Telegram ke banyak target sekaligus.
+     * Format targets: [{ "chat_id": "123", "nama": "Budi", "message": "..." }, ...]
+     *
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function sendBatchTelegram(Request $request)
+    {
+        $request->validate([
+            'targets' => 'required|array|min:1',
+            'targets.*.chat_id' => 'required|string',
+        ]);
+
+        $token = config('services.telegram.bot_token');
+
+        if (empty($token)) {
+            return response()->json([
+                'status' => false,
+                'message' => 'TELEGRAM_BOT_TOKEN tidak diatur',
+            ], 500);
+        }
+
+        $success = 0;
+        $failed = 0;
+
+        foreach ($request->targets as $target) {
+            $message = $target['message'] ?? $request->message ?? '';
+            $message = str_replace('{nama}', $target['nama'] ?? 'Pelanggan', $message);
+
+            if (empty($target['chat_id']) || empty($message)) {
+                $failed++;
+                continue;
+            }
+
+            try {
+                $response = Http::post("https://api.telegram.org/bot{$token}/sendMessage", [
+                    'chat_id' => $target['chat_id'],
+                    'text' => $message,
+                ]);
+
+                $response->successful() ? $success++ : $failed++;
+            } catch (\Exception $e) {
+                $failed++;
+            }
+        }
+
+        return response()->json([
+            'status' => true,
+            'success' => $success,
+            'failed' => $failed,
+            'total' => count($request->targets),
+        ]);
+    }
+
+    /**
+     * Cek apakah nomor WhatsApp tertentu sudah punya chat_id Telegram
+     * (sudah pernah kirim /start ke bot dan berhasil ditautkan).
+     *
+     * @param string $phoneNumber
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getChatIdByPhone($phoneNumber)
+    {
+        $normalized = $this->formatNumber($phoneNumber);
+
+        $pelanggan = DataPelanggan::where('no_whatsapp', $phoneNumber)
+            ->orWhere('no_whatsapp', $normalized)
+            ->first();
+
+        if (!$pelanggan || empty($pelanggan->telegram_chat_id)) {
+            return response()->json([
+                'success' => true,
+                'has_chat_id' => false,
+                'chat_id' => null,
+            ]);
+        }
+
+        return response()->json([
+            'success' => true,
+            'has_chat_id' => true,
+            'chat_id' => $pelanggan->telegram_chat_id,
+        ]);
     }
 }

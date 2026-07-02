@@ -2,12 +2,12 @@
 
 namespace App\Http\Controllers\Api;
 
-// TAMBAHKAN baris di bawah ini agar class Controller utama terbaca dengan benar
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use App\Models\Pelanggan;
+use App\Models\DataPelanggan;
+
 
 class TelegramWebhookController extends Controller
 {
@@ -26,16 +26,18 @@ class TelegramWebhookController extends Controller
             // Jika pelanggan mengetik /start ke TokoJs_bot
             if (str_contains($text, '/start')) {
                 // Coba cocokkan dengan data pelanggan di database berdasarkan nama depan telegram
-                $pelanggan = Pelanggan::where('nama', 'LIKE', "%{$firstName}%")->first();
+                $pelanggan = DataPelanggan::where('nama_pelanggan', 'LIKE', "%{$firstName}%")->first();
 
                 if ($pelanggan) {
                     $pelanggan->update([
-                        'chat_id_telegram' => $chatId
+                        'telegram_chat_id' => $chatId,
+                        'telegram_username' => $update['message']['from']['username'] ?? null,
+                        'telegram_active' => true,
                     ]);
 
-                    $this->sendTelegramMessage($chatId, "✅ Halo {$firstName}! Akun Telegram Anda berhasil ditautkan dengan sistem **JS CELL**.");
+                    $this->sendTelegramMessage($chatId, "✅ Halo {$firstName}! Akun Telegram Anda berhasil ditautkan dengan sistem <b>JS CELL</b>.");
                 } else {
-                    $this->sendTelegramMessage($chatId, "👋 Selamat datang di **TokoJS Bot**!\n\nChat ID Anda adalah: `{$chatId}`.\nBerikan ID ini ke admin untuk sinkronisasi data.");
+                    $this->sendTelegramMessage($chatId, "👋 Selamat datang di <b>TokoJS Bot</b>!\n\nChat ID Anda adalah: <code>{$chatId}</code>.\nBerikan ID ini ke admin untuk sinkronisasi data.");
                 }
             }
         }
@@ -43,9 +45,8 @@ class TelegramWebhookController extends Controller
         return response()->json(['status' => 'success'], 200);
     }
 
-   private function sendTelegramMessage($chatId, $message)
+    private function sendTelegramMessage($chatId, $message)
     {
-        // Ganti baris ini agar membaca dari config services
         Http::post("https://api.telegram.org/bot" . config('services.telegram.bot_token') . "/sendMessage", [
             'chat_id' => $chatId,
             'text' => $message,
