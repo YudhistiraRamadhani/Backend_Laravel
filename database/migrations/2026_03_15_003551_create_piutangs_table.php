@@ -21,6 +21,7 @@ return new class extends Migration
         $table->string('no_whatsapp', 255);
         $table->date('date')->nullable();
         $table->text('pesanpenagihan')->nullable();
+         $table->string('telegram_chat_id')->nullable()->after('no_whatsapp');
         $table->timestamps();
         });
     }

@@ -20,5 +20,6 @@ public $timestamps = false;
         'pesanpenagihan',
         'no_whatsapp',
         'date',
+         'telegram_chat_id'
     ];
 }

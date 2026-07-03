@@ -1,5 +1,6 @@
 <?php
 namespace App\Http\Controllers\Api;
+
 use App\Http\Controllers\Controller;
 use App\Models\Datapiutang;
 use Illuminate\Http\Request;
@@ -13,12 +14,14 @@ class DatapiutangController extends Controller {
 
     /**
      * Get pelanggan data for autocomplete
-     * Mengambil nama dan no_whatsapp dari tabel data_pelanggan
+     * Mengambil id, nama, no_whatsapp, dan telegram_chat_id dari tabel data_pelanggan
      */
     public function getPelanggan()
     {
-        // Mengambil nama dan no_whatsapp dari model DataPelanggan
-        $pelanggan = DataPelanggan::select('nama_pelanggan', 'no_whatsapp')->get();
+        // 🔥 Tambahkan id dan telegram_chat_id untuk Flutter
+        $pelanggan = DataPelanggan::select('id', 'nama_pelanggan', 'no_whatsapp', 'telegram_chat_id')
+            ->orderBy('nama_pelanggan')
+            ->get();
         return response()->json($pelanggan);
     }
 
@@ -29,7 +32,9 @@ class DatapiutangController extends Controller {
     public function getProduk()
     {
         // Mengambil data produk untuk autocomplete
-        $produk = Produk::select('id', 'Nama_Barang', 'Harga', 'Stok', 'jenis_barang')->get();
+        $produk = Produk::select('id', 'Nama_Barang', 'Harga', 'Stok', 'jenis_barang')
+            ->orderBy('Nama_Barang')
+            ->get();
         return response()->json($produk);
     }
 
@@ -38,8 +43,9 @@ class DatapiutangController extends Controller {
      */
     public function index()
     {
-        // Mengambil semua data piutang
-        return response()->json(Piutang::all());
+        // Mengambil semua data piutang diurutkan dari terbaru
+        $piutang = Piutang::orderBy('created_at', 'desc')->get();
+        return response()->json($piutang);
     }
 
     /**
@@ -47,7 +53,8 @@ class DatapiutangController extends Controller {
      */
     public function store(Request $request)
     {
-        $request->validate([
+        // 🔥 Validasi input
+        $validated = $request->validate([
             'nama_pelanggan' => 'required|string',
             'jumlah_hutang' => 'required|integer',
             'nama_barang' => 'required|string',
@@ -56,20 +63,36 @@ class DatapiutangController extends Controller {
             'no_whatsapp' => 'required|string',
             'pesanpenagihan' => 'nullable|string',
             'date' => 'nullable|date',
+            'telegram_chat_id' => 'nullable|string',
         ]);
 
+        // 🔥 Jika telegram_chat_id kosong, cari dari tabel pelanggan
+        if (empty($validated['telegram_chat_id'])) {
+            $pelanggan = DataPelanggan::where('no_whatsapp', $validated['no_whatsapp'])->first();
+            if ($pelanggan && $pelanggan->telegram_chat_id) {
+                $validated['telegram_chat_id'] = $pelanggan->telegram_chat_id;
+            }
+        }
+
+        // 🔥 Perbaiki: Gunakan $validated, bukan $request langsung
+        // 🔥 Perbaiki typo: telegran_chat_id -> telegram_chat_id
         $piutang = Piutang::create([
-            'nama_pelanggan' => $request->nama_pelanggan,
-            'jumlah_hutang' => $request->jumlah_hutang,
-            'nama_barang' => $request->nama_barang,
-            'harga' => $request->harga,
-            'status' => $request->status,
-            'no_whatsapp' => $request->no_whatsapp,
-            'pesanpenagihan' => $request->pesanpenagihan,
-            'date' => $request->date,
+            'nama_pelanggan' => $validated['nama_pelanggan'],
+            'jumlah_hutang' => $validated['jumlah_hutang'],
+            'nama_barang' => $validated['nama_barang'],
+            'harga' => $validated['harga'],
+            'status' => $validated['status'],
+            'no_whatsapp' => $validated['no_whatsapp'],
+            'pesanpenagihan' => $validated['pesanpenagihan'] ?? null,
+            'date' => $validated['date'] ?? date('Y-m-d'),
+            'telegram_chat_id' => $validated['telegram_chat_id'] ?? null,
         ]);
 
-        return response()->json($piutang, 201);
+        return response()->json([
+            'success' => true,
+            'message' => 'Data berhasil disimpan',
+            'data' => $piutang
+        ], 201);
     }
 
     /**
@@ -95,7 +118,16 @@ class DatapiutangController extends Controller {
             'no_whatsapp'    => 'sometimes|required|string',
             'pesanpenagihan' => 'sometimes|nullable|string',
             'date' => 'sometimes|nullable|date',
+            'telegram_chat_id' => 'sometimes|nullable|string',
         ]);
+
+        // 🔥 Jika telegram_chat_id kosong, cari dari tabel pelanggan
+        if (empty($validatedData['telegram_chat_id']) && !empty($validatedData['no_whatsapp'])) {
+            $pelanggan = DataPelanggan::where('no_whatsapp', $validatedData['no_whatsapp'])->first();
+            if ($pelanggan && $pelanggan->telegram_chat_id) {
+                $validatedData['telegram_chat_id'] = $pelanggan->telegram_chat_id;
+            }
+        }
 
         // Update data
         $piutang->update($validatedData);
@@ -121,7 +153,75 @@ class DatapiutangController extends Controller {
         $piutang->delete();
 
         return response()->json([
+            'success' => true,
             'message' => 'Data berhasil dihapus'
         ]);
+    }
+
+    /**
+     * Update status piutang menjadi Lunas
+     */
+    public function updateStatusLunas($id)
+    {
+        $piutang = Piutang::find($id);
+
+        if (!$piutang) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Data tidak ditemukan'
+            ], 404);
+        }
+
+        if ($piutang->status == 'Lunas') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Data sudah lunas'
+            ], 400);
+        }
+
+        $piutang->status = 'Lunas';
+        $piutang->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Status berhasil diupdate menjadi Lunas',
+            'data' => $piutang
+        ]);
+    }
+
+    /**
+     * Sinkronisasi Telegram Chat ID dari DataPelanggan ke Piutang
+     */
+    public function sinkronTelegram()
+    {
+        try {
+            // Ambil semua piutang yang memiliki no_whatsapp
+            $piutangList = Piutang::whereNotNull('no_whatsapp')->get();
+            $updated = 0;
+
+            foreach ($piutangList as $piutang) {
+                // Cari pelanggan berdasarkan no_whatsapp
+                $pelanggan = DataPelanggan::where('no_whatsapp', $piutang->no_whatsapp)->first();
+
+                if ($pelanggan && $pelanggan->telegram_chat_id) {
+                    // Update telegram_chat_id di piutang
+                    $piutang->telegram_chat_id = $pelanggan->telegram_chat_id;
+                    $piutang->save();
+                    $updated++;
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => "Sinkronisasi berhasil, $updated data diupdate",
+                'updated' => $updated
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error: ' . $e->getMessage()
+            ], 500);
+        }
     }
 }

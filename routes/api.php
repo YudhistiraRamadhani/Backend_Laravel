@@ -60,3 +60,7 @@ Route::post('/send-telegram', [BroadcastController::class, 'sendTelegram']);
 Route::post('/send-batch-telegram', [BroadcastController::class, 'sendBatchTelegram']);
 Route::get('/get-chat-id/{phoneNumber}', [BroadcastController::class, 'getChatIdByPhone']);
 Route::post('/send-to-pelanggan/{id}', [BroadcastController::class, 'sendToPelanggan']);
+Route::get('/get-pelanggan', [DatapiutangController::class, 'getPelanggan']);
+Route::get('/get-produk', [DatapiutangController::class, 'getProduk']);
+Route::post('/piutang/{id}/lunas', [DatapiutangController::class, 'updateStatusLunas']);
+Route::post('/piutang/sinkron-telegram', [DatapiutangController::class, 'sinkronTelegram']);
