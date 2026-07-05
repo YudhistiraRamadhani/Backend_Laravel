@@ -178,7 +178,6 @@ class DatapiutangController extends Controller {
 
     /**
      * Sinkronisasi Telegram Chat ID dari DataPelanggan ke Piutang
-     * 🔥 HANYA SATU METHOD, GABUNGKAN KEDUANYA
      */
     public function sinkronTelegram()
     {
@@ -213,6 +212,85 @@ class DatapiutangController extends Controller {
             return response()->json([
                 'success' => false,
                 'message' => 'Error: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Sinkronisasi Telegram Chat ID untuk satu piutang tertentu
+     */
+    public function sinkronTelegramSingle($id)
+    {
+        try {
+            $piutang = Piutang::find($id);
+
+            if (!$piutang) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Piutang tidak ditemukan'
+                ], 404);
+            }
+
+            if (empty($piutang->no_whatsapp)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Piutang tidak memiliki nomor WhatsApp'
+                ], 400);
+            }
+
+            $pelanggan = DataPelanggan::where('no_whatsapp', $piutang->no_whatsapp)->first();
+
+            if ($pelanggan && $pelanggan->telegram_chat_id) {
+                $piutang->telegram_chat_id = $pelanggan->telegram_chat_id;
+                $piutang->save();
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Sinkronisasi berhasil',
+                    'telegram_chat_id' => $pelanggan->telegram_chat_id
+                ]);
+            }
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Pelanggan tidak ditemukan atau belum memiliki Telegram'
+            ], 404);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Ambil telegram_chat_id berdasarkan no_whatsapp
+     */
+    public function getChatIdByPhone($phoneNumber)
+    {
+        try {
+            $pelanggan = DataPelanggan::where('no_whatsapp', $phoneNumber)->first();
+
+            if (!$pelanggan) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Pelanggan tidak ditemukan',
+                    'chat_id' => null,
+                ], 404);
+            }
+
+            return response()->json([
+                'success' => true,
+                'chat_id' => $pelanggan->telegram_chat_id,
+                'has_chat_id' => !empty($pelanggan->telegram_chat_id),
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+                'chat_id' => null,
             ], 500);
         }
     }

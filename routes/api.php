@@ -68,3 +68,5 @@ Route::post('/piutang/sinkron-telegram', [DatapiutangController::class, 'sinkron
 Route::post('/sinkron-telegram', [DatapiutangController::class, 'sinkronTelegram']);
 // atau jika mau menggunakan prefix piutang
 Route::post('/piutang/sinkron-telegram', [DatapiutangController::class, 'sinkronTelegram']);
+
+Route::post('/sinkron-telegram/{id}', [DatapiutangController::class, 'sinkronTelegramSingle']);
