@@ -64,3 +64,7 @@ Route::get('/get-pelanggan', [DatapiutangController::class, 'getPelanggan']);
 Route::get('/get-produk', [DatapiutangController::class, 'getProduk']);
 Route::post('/piutang/{id}/lunas', [DatapiutangController::class, 'updateStatusLunas']);
 Route::post('/piutang/sinkron-telegram', [DatapiutangController::class, 'sinkronTelegram']);
+
+Route::post('/sinkron-telegram', [DatapiutangController::class, 'sinkronTelegram']);
+// atau jika mau menggunakan prefix piutang
+Route::post('/piutang/sinkron-telegram', [DatapiutangController::class, 'sinkronTelegram']);
