@@ -62,59 +62,52 @@ class DataPelangganController extends Controller
         //return single post as a resource
         return new DataPelangganResource(true, 'Detail Data Pelanggan!', $post);
     }
-    public function update(Request $request, $id)
-    {
-        //define validation rules
-        $validator = Validator::make($request->all(), [
-            'nama_pelanggan'     => 'required',
-            'no_whatsapp'   => 'required',
-            'pesannotifikasi' => 'required',
-             'telegram_chat_id' => 'required',
-        ]);
+   public function update(Request $request, $id)
+{
+    $validator = Validator::make($request->all(), [
+        'nama_pelanggan' => 'required',
+        'no_whatsapp' => 'required',
+        'pesannotifikasi' => 'nullable',
+        'telegram_chat_id' => 'nullable',
+        'telegram_username' => 'nullable',
+        'telegram_active' => 'nullable|boolean',
+    ]);
 
-        //check if validation fails
-        if ($validator->fails()) {
-            return response()->json($validator->errors(), 422);
-        }
-
-        //find post by ID
-        $post = DataPelanggan::find($id);
-
-        //check if image is not empty
-        if ($request->hasFile('image')) {
-
-            //upload image
-            $image = $request->file('image');
-            $image->storeAs('public/posts', $image->hashName());
-
-            //delete old image
-            Storage::delete('public/posts/'.basename($post->image));
-
-            //update post with new image
-            $post->update([
-                'nama_pelanggan' => $request->nama_pelanggan,
-        'no_whatsapp' => $request->no_whatsapp,
-        'pesannotifikasi' => $request->pesannotifikasi,
-        'tanggal_notifikasi' => $request->tanggal_notifikasi,
-         'telegram_chat_id' => $request->telegram_chat_id,
-            ]);
-
-        } else {
-
-            //update post without image
-            $post->update([
-               'nama_pelanggan' => $request->nama_pelanggan,
-        'no_whatsapp' => $request->no_whatsapp,
-        'pesannotifikasi' => $request->pesannotifikasi,
-        'tanggal_notifikasi' => $request->tanggal_notifikasi,
-        'telegram_chat_id' => $request->telegram_chat_id,
-            ]);
-        }
-
-        //return response
-        return new DataPelangganResource(true, 'Data Pelanggan Berhasil Diubah!', $post);
+    if ($validator->fails()) {
+        return response()->json($validator->errors(), 422);
     }
-    public function destroy($id)
+
+    $post = DataPelanggan::find($id);
+
+    if (!$post) {
+        return response()->json(['message' => 'Data tidak ditemukan'], 404);
+    }
+
+    // HAPUS tanggal_notifikasi
+    $dataToUpdate = [
+        'nama_pelanggan' => $request->nama_pelanggan,
+        'no_whatsapp' => $request->no_whatsapp,
+        'pesannotifikasi' => $request->pesannotifikasi ?? '',
+        'telegram_chat_id' => $request->telegram_chat_id ?? null,
+        'telegram_username' => $request->telegram_username ?? null,
+        'telegram_active' => $request->telegram_active ?? false,
+    ];
+
+    if ($request->hasFile('image')) {
+        $image = $request->file('image');
+        $image->storeAs('public/posts', $image->hashName());
+
+        if ($post->image) {
+            Storage::delete('public/posts/' . basename($post->image));
+        }
+
+        $dataToUpdate['image'] = $image->hashName();
+    }
+
+    $post->update($dataToUpdate);
+
+    return new DataPelangganResource(true, 'Data Pelanggan Berhasil Diubah!', $post);
+}    public function destroy($id)
     {
         //find post by ID
         $post = DataPelanggan::find($id);
