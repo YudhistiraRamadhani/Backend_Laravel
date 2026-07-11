@@ -12,12 +12,25 @@ use App\Http\Controllers\Api\FonntePenagihanNotificationController;
 use App\Http\Controllers\Api\BroadcastController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\TelegramWebhookController;
+use App\Http\Controllers\AuthController;
+
 // --- ROUTE TANPA LOGIN (Agar Flutter tidak loading/401) ---
 // Route::get('/cron-trigger', function () {
 //     Artisan::call('schedule:run');
 //     return 'Scheduler executed successfully!';
 // });
 // --- TEMPORARY ROUTE CLEANER ---
+Route::post('/login', [AuthController::class, 'login']);
+
+// Protected Route (Harus menyertakan token)
+Route::middleware('auth:sanctum')->group(function () {
+    Route::post('/logout', [AuthController::class, 'logout']);
+
+    // Route test untuk cek user profile
+    Route::get('/user', function (Request $request) {
+        return $request->user();
+    });
+});
 Route::get('/cron-trigger', function () {
     \Illuminate\Support\Facades\Artisan::call('route:clear');
     \Illuminate\Support\Facades\Artisan::call('config:clear');
@@ -68,5 +81,5 @@ Route::post('/piutang/sinkron-telegram', [DatapiutangController::class, 'sinkron
 Route::post('/sinkron-telegram', [DatapiutangController::class, 'sinkronTelegram']);
 // atau jika mau menggunakan prefix piutang
 Route::post('/piutang/sinkron-telegram', [DatapiutangController::class, 'sinkronTelegram']);
-
+Route::post('/login', [AuthController::class, 'login']);
 Route::post('/sinkron-telegram/{id}', [DatapiutangController::class, 'sinkronTelegramSingle']);
