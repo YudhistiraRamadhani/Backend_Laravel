@@ -33,6 +33,8 @@ class ProdukController extends Controller
     public function store(Request $request)
     {
         $request->validate([
+
+
             'Nama_Barang' => 'nullable|string',
             'Harga'       => 'required|string',
             'Stok'        => 'required|string',
@@ -47,6 +49,7 @@ class ProdukController extends Controller
         }
 
         $post = Produk::create([
+            'kode_produk'  => $request->kode_produk,
             'Nama_Barang' => $request->Nama_Barang,
             'Harga'       => $request->Harga,
             'Stok'        => $request->Stok,
@@ -62,6 +65,7 @@ class ProdukController extends Controller
         $post = Produk::findOrFail($id);
 
         $request->validate([
+            'kode_produk'  => 'required|string|unique:produks,kode_produk,' . $id,
             'Nama_Barang' => 'required|string',
             'Harga'       => 'required|string',
             'Stok'        => 'required|string',
@@ -70,6 +74,7 @@ class ProdukController extends Controller
         ]);
 
         $data = [
+            'kode_produk'  => $request->kode_produk,
             'Nama_Barang' => $request->Nama_Barang,
             'Harga'       => $request->Harga,
             'Stok'        => $request->Stok,
